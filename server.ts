@@ -27,6 +27,24 @@ const users = [
  { uid: '2', username: 'kate', password: '123abc', mySecret: 'I let my dog sleep in my bed.'}
 ];
 
+const crypto = require('crypto');
+const path = require('path');
+const fs = require('fs');
+const key = fs.readFileSync(path.resolve('./privkey.pem'), 'utf8');
+
+function encrypt(toEncrypt: string): string {
+ const buffer = Buffer.from(toEncrypt);
+ const encrypted = crypto.privateEncrypt(key, buffer);
+ return encrypted.toString('base64');
+}
+
+function decrypt(toDecrypt: string): string {
+ const buffer = Buffer.from(toDecrypt, 'base64');
+ const decrypted = crypto.publicDecrypt(key, buffer);
+ return decrypted.toString('utf8');
+}
+
+
 app.engine('html', ngExpressEngine({
  bootstrap: AppServerModuleNgFactory,
  providers: [
@@ -37,20 +55,21 @@ app.engine('html', ngExpressEngine({
 app.set('view engine', 'html');
 app.set('views', './dist/browser');
 
-app.post('/auth/signIn', (req, res) => {
- const requestedUser = users.find( user => {
-   return user.username === req.body.username && user.password === req.body.password;
+app.post('/auth/signin', (req, res) => {
+  const requestedUser = users.find( user => {
+    return user.username === req.body.username && user.password === req.body.password;
+  });
+  if (requestedUser) {
+    res.cookie('authentication', encrypt(requestedUser.uid), {
+      maxAge: 2 * 60 * 60 * 60,
+      httpOnly: true
+    });
+    res.status(200).send({status: 'authenticated'});
+  } else {
+    res.status(401).send({status: 'bad credentials'});
+  }
  });
- if (requestedUser) {
-   res.cookie('authentication', requestedUser.uid, {
-     maxAge: 2 * 60 * 60 * 60,
-     httpOnly: true
-   });
-   res.status(200).send({status: 'authenticated'});
- } else {
-   res.status(401).send({status: 'bad credentials'});
- }
-});
+ 
 
 app.get('/auth/isLogged', (req, res) => {
  res.status(200).send({authenticated: !!req.cookies.authentication});
@@ -65,9 +84,10 @@ app.get('/auth/signOut', (req, res) => {
 });
 
 app.get('/secretData', (req, res) => {
- const uid = req.cookies.authentication;
- res.status(200).send({secret: users.find(user => user.uid === uid).mySecret});
-});
+  const uid = decrypt(req.cookies.authentication);
+  res.status(200).send({secret: users.find(user => user.uid === uid).mySecret});
+ });
+ 
 
 app.get('*.*', express.static('./dist/browser', {
  maxAge: '1y'
