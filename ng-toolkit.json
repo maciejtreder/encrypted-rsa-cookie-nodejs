@@ -1,0 +1,8 @@
+{
+  "universal": {
+    "project": "encrypted-rsa-cookie-nodejs",
+    "skipInstall": false,
+    "directory": ".",
+    "http": true
+  }
+}
